@@ -1,0 +1,46 @@
+/*
+Title: File Write to Startup Folder
+Platform: CrowdStrike Falcon LogScale
+Technique: Persistence
+MITRE ATT&CK: T1547.001
+
+Description:
+Detects file-write activity where a process creates or modifies files inside Windows
+Startup folders. Writing to Startup locations is a common persistence mechanism used
+by malware to execute on user logon.
+
+False Positives:
+- Legitimate application installers creating startup shortcuts
+- Enterprise software deployed via management tools
+- User-approved startup utilities (cloud sync, collaboration tools, printers)
+- IT automation or imaging workflows
+
+Tuning Tips:
+- Allowlist known-good installers and management agents by ImageFileName or signer
+- Focus on executable/script extensions for higher fidelity
+- Prioritize rare writers or unsigned binaries
+- Correlate with new scheduled tasks, registry run keys, or process execution events
+- Restrict to user profile paths for stronger signal
+
+References:
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=/Written/i  // Broad match for file-write related event types
+
+
+// Target: Windows Startup folder writes
+// Matches common Startup paths under the Start Menu
+| regex(field="TargetFileName", flags="i",regex="\\\\Start Menu\\\\Programs\\\\Startup\\\\")
+
+// Optional: focus on executable/script persistence artifacts
+// Enable if too noisy
+//| regex(field="TargetFileName", flags="i", regex="\\.(exe|dll|ps1|vbs|js|bat|cmd|lnk|scr|msi)$")
+
+// Optional: suppress known-good installers or management tools
+//| in(field="ImageFileName", values=["msiexec.exe","setup.exe","trustedinstaller.exe","ccmexec.exe"])
+
+// Aggregation: identify who is writing to Startup folders
+| groupBy([ComputerName, UserName, ImageFileName, TargetFileName],function=[count(as=StartupWrites)],limit=max)
+
+| sort([StartupWrites], order=desc, limit=200)

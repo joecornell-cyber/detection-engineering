@@ -1,0 +1,76 @@
+/*
+Title: Failed Logon Threat Intel Sources Detection
+Platform: CrowdStrike Falcon LogScale
+Technique: Credential Access
+MITRE ATT&CK: T1110
+
+Description:
+Identifies potentially suspicious authentication activity by highlighting failed logons
+originating from source IPs that are either explicitly watchlisted (e.g., threat intel feeds)
+or not part of a known-good allowlist (e.g., corporate VPN/proxy egress, jump hosts).
+Includes geolocation enrichment via ipLocation() to add investigation context.
+
+False Positives:
+- Legitimate authentication traffic from newly added VPN/proxy egress IPs
+- Third-party integrations, IdP gateways, or hosted services using unfamiliar source IPs
+- Penetration tests or sanctioned security scanning from external infrastructure
+- GeoIP inaccuracies (context enrichment only)
+
+Tuning Tips:
+- Maintain a known-good allowlist lookup for corporate egress, jump hosts, and trusted scanners
+- Use match() with mode=cidr when managing subnets rather than individual IPs
+- Add labels/source columns to lookup files to improve triage context in results
+- Increase the failure threshold to reduce noise from isolated mistyped passwords
+- Prioritize privileged accounts and high-value endpoints for alerting
+
+References:
+- Falcon LogScale ipLocation() docs: https://library.humio.com/data-analysis/functions-iplocation.html
+- Falcon LogScale match() docs: https://library.humio.com/data-analysis/functions-match.html
+- Falcon LogScale Documentation (https://library.humio.com/)
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=UserLogonFailedv2
+
+// Enrich the source IP address with geolocation context
+| ipLocation(field=RemoteAddressIP, as=src)
+
+
+// ------------------------------------------------------------
+// Source Scoping Options
+// ------------------------------------------------------------
+
+// Option 1: Target a small, manually curated set of source IPs using in()
+// Useful for rapid investigations or short-term blocking/watch lists
+//| in(field="RemoteAddressIP", values=["203.0.113.10","198.51.100.25"]) // Investigative watchlist IPs
+
+// Suppress known-good authentication sources (corporate VPN/proxy egress, jump hosts, trusted scanners)
+//| !in(field="RemoteAddressIP", values=["192.0.2.15","198.51.100.42"]) // Expected authentication sources
+
+
+// Option 2: Use lookup files for scalable watchlists and allowlists via match()
+// Recommended when managing large indicator sets or regularly updated feeds
+
+// Threat-intelligence watchlist (exact IPs or CIDR ranges)
+// - Example file: threat_intel_ips.csv   (columns: ip, label, source)
+// - Example file: threat_intel_cidrs.csv (columns: cidr, label, source)
+//| match(file="threat_intel_ips.csv", field="RemoteAddressIP", column="ip", include=["label","source"], strict=true)
+//| match(file="threat_intel_cidrs.csv", field="RemoteAddressIP", column="cidr", mode=cidr, include=["label","source"], strict=true)
+
+// Allowlist lookup to suppress trusted infrastructure at scale
+// - Example file: known_good_ips.csv (columns: ip, owner, notes)
+//| !match(file="known_good_ips.csv", field="RemoteAddressIP", column="ip", strict=true)
+
+
+// ------------------------------------------------------------
+// Aggregation and Alerting Logic
+// ------------------------------------------------------------
+
+// Aggregate failed logons by source IP with user, host, and geolocation context
+| groupBy([RemoteAddressIP, src.country, src.city, UserName, ComputerName], function=count(), limit=max)
+
+// Alert when failures exceed the defined threshold; tune based on environment baseline
+| where count >= 5
+
+// Prioritize the noisiest or most active sources for investigation
+| sort([count], order=desc, limit=200)

@@ -1,0 +1,61 @@
+/*
+Title: Installed Browser Extension Watchlist (Widespread Prevalence)
+Platform: CrowdStrike Falcon LogScale
+Technique: Persistence
+MITRE ATT&CK: T1176
+
+Description:
+Identifies potentially suspicious or unwanted browser extensions by filtering extension
+install events against either an inline watchlist (in) or a lookup-based watchlist (match).
+Summarizes results by extension and browser, and ranks by how many distinct endpoints have
+the extension installed to help prioritize the most prevalent findings.
+
+False Positives:
+- Legitimate business extensions (password managers, meeting tools, accessibility tools)
+- Newly approved extensions not yet captured in allowlist/watchlist processes
+- Developer/test extensions used by IT or engineering teams
+
+Tuning Tips:
+- Prefer match() with a CSV lookup for maintainability (TI feeds, banned lists, approved lists)
+- Add metadata columns to your CSV (label, source, risk, notes) to enrich triage output
+- Consider using an allowlist (approved extensions) and hunting for !match() instead
+- Filter to high-value user groups or sensitive endpoints for stronger signal
+
+References:
+- Falcon LogScale match() docs: https://library.humio.com/data-analysis/functions-match.html
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=InstalledBrowserExtension
+
+// ------------------------------------------------------------
+// Watchlist Options (enable ONE of the following)
+// ------------------------------------------------------------
+
+// Option 1: Small, manually curated extension ID watchlist (quick hunting)
+//| in(field="BrowserExtensionId", values=["<extension_id_1>", "<extension_id_2>"])
+
+// Option 2: Scalable lookup-based watchlist (recommended for TI or policy lists)
+// Example file: extension_watchlist.csv (columns: extension_id, label, source, notes)
+//| match(file="extension_watchlist.csv", field="BrowserExtensionId", column="extension_id", include=["label","source","notes"], strict=true)
+
+
+// ------------------------------------------------------------
+// Normalize browser identifiers for readability
+// ------------------------------------------------------------
+| case{
+    BrowserName="3" | BrowserName_Readable:="Chrome";
+    BrowserName="4" | BrowserName_Readable:="Edge";
+    *               | BrowserName_Readable:="Other/Unknown";
+}
+
+
+// ------------------------------------------------------------
+// Summarize and rank results for triage
+// ------------------------------------------------------------
+
+// Distinct endpoints is usually the most useful prevalence signal
+| groupBy([BrowserExtensionId, BrowserExtensionName, BrowserName_Readable],function=[count(ComputerName, distinct=true, as=TotalEndpoints)],limit=max)
+
+// Prioritize the most widespread extensions first
+| sort([TotalEndpoints], order=desc, limit=max)

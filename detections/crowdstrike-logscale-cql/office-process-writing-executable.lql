@@ -1,0 +1,39 @@
+/*
+Title: Office Process Writing Executable or Script Files
+Platform: CrowdStrike Falcon LogScale
+Technique: Initial Access / Execution
+MITRE ATT&CK: T1566, T1204, T1059
+
+Description:
+Detects file-write activity where Microsoft Office processes (Word/Excel/PowerPoint/Outlook)
+write potentially executable or script content to disk. This can indicate malicious documents
+dropping payloads via macros, embedded objects, or exploit chains.
+
+False Positives:
+- Legitimate Office add-ins extracting helper binaries
+- Corporate automation/templates that drop scripts
+- Document conversion/export tooling integrated with Office
+- Developer/test workflows on IT/engineering endpoints
+
+Tuning Tips:
+- Keep the extension list tight (scripts + binaries) to reduce noise
+- Consider scoping to user-writable paths (Downloads/AppData/Temp) for higher signal
+- Maintain allowlists for known-good add-ins or internal tooling
+- Correlate with follow-on execution from the same TargetFileName
+
+References:
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=/Written/i  // Broad match: file-write related event types
+
+// Writer Process Scope: Microsoft Office processes
+| in(field="ImageFileName", values=["winword.exe","excel.exe","powerpnt.exe","outlook.exe"])
+
+// Target File Filter: executable / script-like extensions
+| regex(field="TargetFileName", flags="i", regex="\\.(exe|dll|js|vbs|ps1|bat|cmd|scr|msi|lnk)$")
+
+// Aggregation: surface Office processes writing suspicious file types
+| groupBy([ComputerName, UserName, ImageFileName, TargetFileName],function=[count(as=OfficeDropWrites)],limit=max)
+
+| sort([OfficeDropWrites], order=desc, limit=max)

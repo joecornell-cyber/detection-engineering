@@ -1,0 +1,57 @@
+/*
+Title: Failed Logon Targeted Users
+Platform: CrowdStrike Falcon LogScale
+Technique: Credential Access
+MITRE ATT&CK: T1110
+
+Description:
+Monitors failed authentication attempts targeting a defined set of high-value accounts
+(e.g., admins, executives, service accounts). Supports both a small inline list (in)
+and a scalable lookup-based approach (match) so the target set can be maintained over time.
+Results are summarized with user + source + endpoint context to prioritize the noisiest
+or most suspicious activity.
+
+False Positives:
+- Legitimate users mistyping passwords (especially after password changes)
+- Service accounts with expired credentials / misconfigured dependencies
+- SSO/IAM or application integration issues producing repeated failures
+- Scheduled tasks or scripts retrying with stale credentials
+
+Tuning Tips:
+- Prefer match() with a CSV lookup for maintainability and ownership
+- Add metadata fields to the lookup (owner, criticality, notes) to enrich triage output
+- Tune thresholds per account criticality (lower for admins, higher for noisy service accounts)
+- Consider adding geo enrichment and allowlisting expected VPN/proxy sources
+- Pair with spray-style signals (many targeted users from one IP, or many IPs against one user)
+
+References:
+- Falcon LogScale match() docs: https://library.humio.com/data-analysis/functions-match.html
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=UserLogonFailedv2
+
+// Targeted User Scoping (enable ONE)
+
+// Option 1: Small, manually curated list (quick hunts / short-term monitoring)
+//| in(field="UserName", ignoreCase=true, values=["admin", "svc_backup", "jdoe"])
+
+// Option 2: Lookup-based list (recommended for long-term monitoring)
+// Example file: targeted_users.csv (columns: username, owner, criticality, notes)
+//| match(file="targeted_users.csv", field="UserName", column="username", include=["owner","criticality","notes"], strict=true)
+
+// Enrich source IP with geolocation for triage context
+//| ipLocation(field=RemoteAddressIP, as=src)
+
+// Suppress known-good auth sources (VPN egress, proxy, jump hosts)
+//| !in(field="RemoteAddressIP", values=["<vpn_egress_ip_1>", "<proxy_ip_2>"])
+
+
+// Aggregation and alerting logic
+| groupBy([UserName, RemoteAddressIP, ComputerName], function=[count(as=FailedLogons)], limit=max)
+
+// Threshold: tune to your baseline; consider per-user tuning outside the query if needed
+| where FailedLogons >= 5
+
+// Rank highest volume first
+| sort([FailedLogons], order=desc, limit=max)

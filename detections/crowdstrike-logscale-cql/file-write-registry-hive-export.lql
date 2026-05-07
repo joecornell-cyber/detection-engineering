@@ -1,0 +1,53 @@
+/*
+Title: Registry Hive Export Written to Disk
+Platform: CrowdStrike Falcon LogScale
+Technique: Credential Access
+MITRE ATT&CK: T1003.002
+
+Description:
+Detects potential registry hive exports by identifying file-write activity where common hive artifacts (SAM, SYSTEM, SECURITY) or
+hive-like output filenames are written. Adversaries frequently export these hives for offline credential dumping.
+
+False Positives:
+- Legitimate IR/forensics collection
+- Backup / imaging / migration tooling
+- Some endpoint management or security products collecting system state
+- Admin troubleshooting scripts using reg.exe
+
+Tuning Tips:
+- Prefer allowlisting known IR tools and management agents by ImageFileName/ParentFileName
+- Add an allowlist for expected output directories (approved collection shares)
+- Focus on user-writable locations (Temp, Downloads, Desktop) for higher signal
+- Consider correlating with process execution (ProcessRollup2) for reg save / reg export
+- Raise thresholds or require distinct file paths if noisy
+
+References:
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=/Written/i  // Broad match for file-write related event types
+
+// Target Scope: Registry hive export artifacts written to disk
+// Matches:
+// - Paths ending with \SAM, \SYSTEM, \SECURITY (no extension)
+// - Common export names like sam.hiv / system.hiv / security.hiv
+// - Optional extension variations (e.g., .sav/.save/.bak) if desired (see stricter option below)
+| regex(field="TargetFileName", flags="i", regex="(\\\\(sam|system|security)(\\.[^\\\\]+)?$)|(\\b(sam|system|security)\\.hiv$)")
+
+// Optional: Scope to reg.exe as writer (or parent) to reduce noise
+// Enable ONE or BOTH lines depending on your environment and data quality.
+//| regex(field="ImageFileName", flags="i", regex="\\\\reg\\.exe$")
+//| regex(field="ParentFileName", flags="i", regex="\\\\reg\\.exe$")
+
+// Optional (stricter): Only match common hive export extensions
+// Use this instead of the broader regex above if you want fewer matches.
+//| regex(field="TargetFileName", flags="i", regex="(\\\\(sam|system|security)\\.(hiv|sav|save|bak)$)|(\\b(sam|system|security)\\.(hiv|sav|save|bak)$)")
+
+// Optional: Focus on common dump locations (higher signal)
+// Matches common dump directories AND requires the filename to include sam/system/security.
+//| regex(field="TargetFileName", flags="i", regex="\\\\(users\\\\[^\\\\]+\\\\(downloads|desktop)|windows\\\\temp|temp)\\\\.*(sam|system|security)(\\.[^\\\\]+)?$")
+
+// Aggregation and Prioritization
+| groupBy([ComputerName, UserName, ImageFileName, ParentFileName, TargetFileName], function=[count(as=HiveExportWrites)], limit=max)
+
+| sort([HiveExportWrites], order=desc, limit=max)

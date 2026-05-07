@@ -1,10 +1,31 @@
-# 👋 Hi, I’m Joe Cornell
+# 👋 Hi, I’m Joe Cornell  
 **Cybersecurity Analyst | Detection Engineering | Blue Team Operations**
 
 I’m passionate about building and defending modern enterprise networks through threat detection, adversary simulation, and continuous learning.  
 I currently work as a **Security Analyst**, where I design SIEM detections, automate response workflows, and perform threat investigation and validation.
 
-### 🧩 Interests
+This repository serves as my personal cybersecurity portfolio and working knowledge base, including detection engineering research, lab environments, and certification writeups.
+
+---
+
+## 🔎 Detections & Threat Hunting
+
+Organized by platform and MITRE ATT&CK tactic:
+
+- **CrowdStrike LogScale (CQL)** → `detections/crowdstrike-logscale-cql/`
+- **Splunk (SPL)** → `detections/splunk-spl/`
+- **Microsoft Sentinel (KQL)** → `detections/sentinel-kql/`
+
+Focus areas:
+- behavioral analytics
+- anomaly detection
+- credential abuse
+- lateral movement
+- LOLBins and persistence techniques
+
+---
+
+## 🧩 Interests
 - Detection Engineering & SIEM Analytics (Wazuh, LogScale, Splunk)
 - Threat Hunting & Incident Response
 - Adversary Simulation / BAS
@@ -12,27 +33,49 @@ I currently work as a **Security Analyst**, where I design SIEM detections, auto
 - Penetration Testing
 - Writing about Cybersecurity on [Medium](https://medium.com)
 
-### 🧠 Certifications
-- CompTIA Security+
-- CompTIA CySA+
-- Blue Team Level 1
-- PJPT (TCM Security)
-- Working toward PNPT (Dec 2025)
-- OSCP (Spring 2026)
+---
 
-### 🧰 Projects
-| Project | Description | Link |
-|----------|--------------|------|
-| **Wazuh SIEM Implementation & Detection Lab** | Designed a complete Wazuh environment using VMware, deploying a centralized Wazuh server (manager, indexer, and dashboard) with multiple agents across Windows and Linux hosts. Built detection rules, dashboards, and alert workflows to visualize security events and demonstrate SIEM correlation capabilities. | _Coming soon_ |
-| **Active Directory Offensive Lab** | Build an isolated AD domain (1x DC + 2x hosts) for hands-on offensive exercises. Includes repeatable Vagrant/VM templates, walkthroughs for Kerberoasting, AS-REP roasting, DCSync, pass-the-hash, lateral movement, and post-exploitation. Comes with attack playbooks, BloodHound graphs, detection notes, and recommended mitigations for defenders. | _Coming soon_ |
+## 🧠 Certifications
+- CompTIA Security+  
+- CompTIA CySA+  
+- Blue Team Level 1  
+- PJPT (TCM Security)  
+- Working toward PNPT (April 2026)  
+- OSCP (June 2026)
 
+---
 
-### 📰 Articles
-Check out my cybersecurity posts on [Medium](https://medium.com):
-- _PJPT Certification Review_ — coming soon  
-- _Building a SIEM Home Lab on Wazuh_ — coming soon  
-- _Learning Detection Engineering through MITRE ATT&CK_ — coming soon  
+## 🧪 Labs & Environments
 
-### 📫 Connect
+| Lab | Description | Link |
+|------|------------|------|
+| **Wazuh SIEM Implementation** | VMware-based Wazuh deployment with agents across Windows/Linux systems, dashboards, custom detection rules, and alert pipelines. | `labs/wazuh/` |
+| **Active Directory Attack & Defend Lab** | Isolated AD domain for offensive techniques and defensive detections including Kerberoasting, DCSync, lateral movement, and detection mapping. | `labs/active-directory/` |
+| **Cloud Detection Lab** | Azure/AWS logging experiments and cloud-focused analytics. | `labs/cloud/` |
+
+---
+
+## 📰 Articles & Writeups
+
+Certification reviews and technical writeups:
+
+- PJPT Review — coming soon  
+- Building a SIEM Home Lab on Wazuh — coming soon  
+- Detection Engineering through MITRE ATT&CK — coming soon  
+
+See: `writeups/`
+
+---
+
+## 📫 Connect
+
 📧 [joe88cornell@yahoo.com](mailto:joe88cornell@yahoo.com)  
 💼 [LinkedIn](https://linkedin.com/in/joe-cornell)
+
+---
+
+## ⚖️ Notes on Scope & Ethics
+
+- No employer or customer data is included.
+- All queries and labs are based on public documentation, community references, and personal research.
+- Content is intended for educational and portfolio purposes.

@@ -1,0 +1,39 @@
+/*
+Title: Failed Logon Geo Anomaly Detection
+Platform: CrowdStrike Falcon LogScale
+Technique: Credential Access
+MITRE ATT&CK: T1110
+
+Description:
+Identifies potentially suspicious authentication activity by enriching failed logon
+events with geolocation data (ipLocation) and highlighting bursts of failures coming
+from unexpected or unusual geographic origins. This can indicate credential stuffing,
+brute-force attempts, or scripted probing from foreign infrastructure.
+
+False Positives:
+- Legitimate travel or remote work from a new location
+- VPN / proxy egress IP changes (corporate VPN, consumer VPNs)
+- GeoIP inaccuracies or coarse geolocation for cloud/CDN IP ranges
+- Automated health checks or integrations attempting auth from hosted regions
+
+Tuning Tips:
+- Raise the failed-attempt threshold to reduce one-off noise
+- Exclude known VPN/proxy egress IPs and trusted infrastructure ranges
+- Focus on privileged accounts and high-value endpoints
+- Add allowlists for expected countries (or alert only on non-expected regions)
+- Pair with other signals (multiple users targeted by same IP, repeated attempts across hosts)
+
+References:
+- Falcon LogScale Documentation (https://library.humio.com/)
+- Falcon LogScale ipLocation() docs: https://library.humio.com/data-analysis/functions-iplocation.html
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=UserLogonFailedv2
+
+| ipLocation(field=RemoteAddressIP, as=src)
+| groupBy([UserName, src.country, src.city, RemoteAddressIP, ComputerName], function=count(), limit=max)
+| in(field="src.country", values=["Canada"]) // Optional: restrict alerts to specific high-risk or non-standard countries
+| !in(field="src.country", values=["US"]) // Allowlisted countries where logons are normally expected
+| where count >= 5 // Threshold should be tuned based on baseline authentication failure rates
+| sort([count], order=desc, limit=200)

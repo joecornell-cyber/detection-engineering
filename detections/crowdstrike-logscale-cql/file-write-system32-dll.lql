@@ -1,0 +1,41 @@
+/*
+Title: System32 DLL Write Activity
+Platform: CrowdStrike Falcon LogScale
+Technique: Persistence / Defense Evasion
+MITRE ATT&CK: T1574.002, T1547
+
+Description:
+Detects file-write activity where a process writes a DLL into the Windows System32 directory.
+Writing into System32 is uncommon for standard user activity and can indicate privilege
+abuse, tampering, or persistence via DLL search order hijacking / replacement.
+
+False Positives:
+- Legitimate OS updates / servicing (Windows Update, component servicing)
+- Enterprise software installers/updaters running with admin rights
+- EDR/AV remediation actions restoring system files
+- Gold image / provisioning workflows
+
+Tuning Tips:
+- Run in shorter time windows during investigation (e.g., 15–60 minutes)
+- Allowlist known-good updaters/installers (by ImageFileName / signer / parent process)
+- Consider also filtering on rare writers (new/unsigned binaries) for higher signal
+- Add a second view that groups only by ImageFileName to identify top writers
+
+References:
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=/Written/i  // Broad match: file-write related event types
+
+// Target: DLL writes into the Windows System32 directory
+| regex(field="TargetFileName", flags="i", regex="\\\\Windows\\\\System32\\\\.*\\.dll$")
+
+
+// Optional: allowlist common benign writers (enable as needed)
+// Use in() for a small explicit list of known-good processes
+//| in(field="ImageFileName", values=["trustedinstaller.exe","tiworker.exe","dism.exe","msiexec.exe"])
+
+// Aggregation: show who is writing DLLs into System32
+| groupBy([ComputerName, UserName, ImageFileName, ParentFileName, TargetFileName],function=[count(as=System32DllWrites)],limit=max)
+
+| sort([System32DllWrites], order=desc, limit=max)

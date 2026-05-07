@@ -1,0 +1,44 @@
+/*
+Title: File Write by Living-off-the-Land Binary (LOLBin)
+Platform: CrowdStrike Falcon LogScale
+Technique: Defense Evasion / Command and Control / Execution
+MITRE ATT&CK: T1218 / T1059 / T1105 (related)
+
+Description:
+Detects file-write activity performed by common Living-off-the-Land binaries (LOLbins)
+such as PowerShell, certutil, mshta, rundll32, and scripting engines. Adversaries often
+abuse these signed Windows utilities to download, stage, or drop payloads to disk
+while blending in with legitimate system activity.
+
+False Positives:
+- IT automation scripts using PowerShell or cmd.exe
+- Software installers leveraging certutil or rundll32
+- Endpoint management / deployment tooling
+- Admin troubleshooting scripts
+
+Tuning Tips:
+- Allowlist known-good management agents or scripts by ImageFileName + command line
+- Add path scoping (Temp, Downloads, AppData) for stronger signal
+- Focus on rare LOLbin usage per host/user
+- Correlate with execution telemetry for “write then run” behavior
+- Add suspicious extension filters (.exe/.dll/.ps1/etc.) if noisy
+
+References:
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=/Written/i   // Broad match for file-write related event types
+
+// LOLBin filter using in()
+| in(field="ImageFileName",ignoreCase=true,values=["powershell.exe","pwsh.exe","certutil.exe","bitsadmin.exe","mshta.exe","rundll32.exe","regsvr32.exe","wscript.exe","cscript.exe","cmd.exe"])
+
+// Optional: restrict to suspicious output file types (enable if noisy)
+//| regex(field="TargetFileName", flags="i", regex="\\.(exe|dll|ps1|vbs|js|bat|cmd|scr|msi|lnk|dmp)$")
+
+// Optional: focus on user-writable directories for higher signal
+//| regex(field="TargetFileName", flags="i", regex="\\\\users\\\\[^\\\\]+\\\\(appdata|downloads|temp|desktop)\\\\")
+
+// Aggregation and ranking
+| groupBy([ComputerName, UserName, ImageFileName, TargetFileName], function=[count(as=LOLBinFileWrites)], limit=max)
+
+| sort([LOLBinFileWrites], order=desc, limit=max)

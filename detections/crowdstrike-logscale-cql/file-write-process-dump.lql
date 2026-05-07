@@ -1,0 +1,45 @@
+/*
+Title: Process Dump Written to Disk (Potential Credential Dumping)
+Platform: CrowdStrike Falcon LogScale
+Technique: Credential Access
+MITRE ATT&CK: T1003.001
+
+Description:
+Detects potential process memory dumping by identifying file-write activity consistent with
+dump artifacts (for example .dmp files) and/or dump filenames that reference sensitive
+processes (commonly LSASS). Process dumps can be used to extract credentials and secrets
+offline.
+
+False Positives:
+- Legitimate crash dumps (WerFault, application error reporting)
+- Endpoint security tooling (EDR/AV) capturing memory for analysis/remediation
+- IT troubleshooting / developer debugging tools
+- Performance/diagnostic utilities (ProcDump, Task Manager full dumps)
+
+Tuning Tips:
+- Start by hunting broadly, then tighten with allowlists for known dump tools/processes
+- Consider scoping to user-writable locations (Temp/Downloads/Desktop) for higher signal
+- Add a watchlist for sensitive process names (lsass, winlogon, samss, etc.) if present in filenames
+- If your telemetry includes dump path fields, prefer those over filename-only matching
+- Consider correlating with ProcessRollup2 (process execution) for procdump/comsvcs/werfault usage
+
+References:
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+#event_simpleName=/Written/i  // Broad match for file-write related event types
+
+// Target scope: process dump-like artifacts written to disk
+// Matches either:
+//  - filenames ending in .dmp
+//  - filenames/paths containing "lsass" (common dump naming convention)
+//  - common Windows error reporting dump naming patterns (minidump / memory.dmp)
+| regex(field="TargetFileName", flags="i", regex="(\\.dmp$)|(\\blsass\\b)|(minidump)|(memory\\.dmp$)")
+
+// Optional: focus on common user-writable dump locations (higher signal)
+//| regex(field="TargetFileName", flags="i", regex="\\\\(users\\\\[^\\\\]+\\\\(downloads|desktop)|windows\\\\temp|temp)\\\\.*(\\.dmp$|\\blsass\\b|memory\\.dmp$)")
+
+// Aggregation and ranking
+| groupBy([ComputerName, UserName, ImageFileName, TargetFileName], function=[count(as=DumpWriteEvents)], limit=max)
+
+| sort([DumpWriteEvents], order=desc, limit=200)
