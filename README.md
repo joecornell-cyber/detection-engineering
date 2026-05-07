@@ -1,4 +1,4 @@
-# Defensive Security Playbook
+# Detection Engineering
 
 A collection of detection engineering content, security labs, threat hunting queries, and hands-on defensive security research focused on modern enterprise environments.
 
