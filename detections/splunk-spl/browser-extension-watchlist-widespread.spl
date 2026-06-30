@@ -1,0 +1,44 @@
+/*
+Title: Installed Browser Extension Watchlist (Widespread Prevalence)
+Platform: Splunk SPL
+Technique: Persistence
+MITRE ATT&CK: T1176
+
+Description:
+Identifies potentially suspicious or unwanted browser extensions by filtering extension
+install events against either an inline watchlist or a lookup-based watchlist. Summarizes
+results by extension and browser, and ranks by how many distinct endpoints have the extension
+installed to help prioritize the most prevalent findings.
+
+False Positives:
+- Legitimate business extensions (password managers, meeting tools, accessibility tools)
+- Newly approved extensions not yet captured in allowlist/watchlist processes
+- Developer/test extensions used by IT or engineering teams
+
+Tuning Tips:
+- Prefer lookup CSVs for maintainability (TI feeds, banned lists, approved lists)
+- Add metadata columns to your CSV (label, source, risk, notes) to enrich triage output
+- Consider using an allowlist of approved extensions and hunting for unmatched extensions
+- Filter to high-value user groups or sensitive endpoints for stronger signal
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=InstalledBrowserExtension
+
+``` Watchlist Option 1: small manually curated extension ID watchlist ```
+``` | search BrowserExtensionId IN ("<extension_id_1>","<extension_id_2>") ```
+
+``` Watchlist Option 2: lookup-based watchlist; example CSV columns: extension_id, label, source, notes ```
+``` | lookup extension_watchlist.csv extension_id as BrowserExtensionId OUTPUT label source notes ```
+
+``` Normalize browser identifiers for readability ```
+| eval BrowserName_Readable=case(BrowserName="3","Chrome", BrowserName="4","Edge", true(),"Other/Unknown")
+
+``` Summarize and rank results for triage ```
+| stats dc(ComputerName) as TotalEndpoints by BrowserExtensionId BrowserExtensionName BrowserName_Readable
+
+``` Prioritize the most widespread extensions first ```
+| sort - TotalEndpoints

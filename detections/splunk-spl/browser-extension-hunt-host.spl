@@ -1,0 +1,45 @@
+/*
+Title: Installed Browser Extension Hunt (Host Inventory / Validation)
+Platform: Splunk SPL
+Technique: Persistence
+MITRE ATT&CK: T1176
+
+Description:
+Supports investigation and validation on a specific endpoint by listing browser extensions
+installed on that host. Optionally filters results using an inline watchlist or lookup-based
+watchlist to quickly confirm whether a flagged extension is present.
+
+False Positives:
+- Standard corporate extensions deployed via policy
+- User-installed productivity extensions
+- Developer/test extensions on IT/engineering systems
+
+Tuning Tips:
+- Start with a host filter (ComputerName) to reduce noise and speed triage
+- Use a lookup CSV watchlist to avoid hardcoding extension IDs
+- If you maintain an allowlist of approved extensions, pivot to NOT lookup matches to find outliers
+- Add user context (UserName) if it is reliable in your telemetry
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=InstalledBrowserExtension
+
+``` Scope to a single endpoint before running ```
+| search ComputerName="<COMPUTER_NAME_HERE>"
+
+``` Optional: small manually curated extension ID watchlist ```
+``` | search BrowserExtensionId IN ("<extension_id_1>","<extension_id_2>") ```
+
+``` Optional: lookup-based watchlist; example CSV columns: extension_id, label, source, notes ```
+``` | lookup extension_watchlist.csv extension_id as BrowserExtensionId OUTPUT label source notes ```
+
+``` Normalize browser identifiers for readability ```
+| eval BrowserName_Readable=case(BrowserName="3","Chrome", BrowserName="4","Edge", true(),"Other/Unknown")
+
+``` Output view: inventory of extensions on the host ```
+| stats values(BrowserName_Readable) as BrowserNames values(BrowserExtensionId) as BrowserExtensionIds values(BrowserExtensionName) as BrowserExtensionNames by ComputerName
+
+| sort ComputerName

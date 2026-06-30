@@ -1,0 +1,40 @@
+/*
+Title: Failed Logon Brute Force Detection
+Platform: Splunk SPL
+Technique: Credential Access
+MITRE ATT&CK: T1110
+
+Description:
+Identifies potential brute-force authentication activity by detecting a high
+volume of failed logon attempts against a single user, host, or source IP
+within a short time window. This may indicate automated password guessing
+or scripted credential-access attempts.
+
+False Positives:
+- Vulnerability scanners or authentication testing tools
+- Misconfigured applications repeatedly retrying credentials
+- VDI or shared systems with mistyped passwords
+- Legitimate user lockouts during password resets
+
+Tuning Tips:
+- Baseline typical failed logon volumes per environment before setting thresholds
+- Exclude known scanners, monitoring systems, or jump hosts
+- Apply time-window aggregation to reduce low-and-slow noise
+- Adjust thresholds separately for servers, workstations, and VDI pools
+- Alert only when multiple users or hosts are impacted by the same source
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=UserLogonFailedv2
+
+``` Aggregation: count failed logons by user, source IP, and host ```
+| stats count as FailedLogons by UserName RemoteAddressIP ComputerName
+
+``` Threshold should be tuned based on baseline authentication volume ```
+| where FailedLogons >= 10
+
+``` Prioritize highest-volume brute-force candidates ```
+| sort - FailedLogons

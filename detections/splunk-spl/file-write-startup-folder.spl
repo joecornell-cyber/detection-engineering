@@ -1,0 +1,45 @@
+/*
+Title: File Write to Startup Folder
+Platform: Splunk SPL
+Technique: Persistence
+MITRE ATT&CK: T1547.001
+
+Description:
+Detects file-write activity where a process creates or modifies files inside Windows
+Startup folders. Writing to Startup locations is a common persistence mechanism used
+by malware to execute on user logon.
+
+False Positives:
+- Legitimate application installers creating startup shortcuts
+- Enterprise software deployed via management tools
+- User-approved startup utilities (cloud sync, collaboration tools, printers)
+- IT automation or imaging workflows
+
+Tuning Tips:
+- Allowlist known-good installers and management agents by ImageFileName or signer
+- Focus on executable/script extensions for higher fidelity
+- Prioritize rare writers or unsigned binaries
+- Correlate with new scheduled tasks, registry run keys, or process execution events
+- Restrict to user profile paths for stronger signal
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=*Written*
+
+``` Target: Windows Startup folder writes ```
+``` Matches common Startup paths under the Start Menu ```
+| regex TargetFileName="(?i)\\Start Menu\\Programs\\Startup\\"
+
+``` Optional: focus on executable/script persistence artifacts ```
+``` | regex TargetFileName="(?i)\.(exe|dll|ps1|vbs|js|bat|cmd|lnk|scr|msi)$" ```
+
+``` Optional: suppress known-good installers or management tools ```
+``` | search NOT ImageFileName IN ("msiexec.exe","setup.exe","trustedinstaller.exe","ccmexec.exe") ```
+
+``` Aggregation: identify who is writing to Startup folders ```
+| stats count as StartupWrites by ComputerName UserName ImageFileName TargetFileName
+
+| sort - StartupWrites

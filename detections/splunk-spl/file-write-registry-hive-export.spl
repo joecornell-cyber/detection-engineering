@@ -1,0 +1,48 @@
+/*
+Title: Registry Hive Export Written to Disk
+Platform: Splunk SPL
+Technique: Credential Access
+MITRE ATT&CK: T1003.002
+
+Description:
+Detects potential registry hive exports by identifying file-write activity where common
+hive artifacts (SAM, SYSTEM, SECURITY) or hive-like output filenames are written.
+Adversaries frequently export these hives for offline credential dumping.
+
+False Positives:
+- Legitimate IR/forensics collection
+- Backup / imaging / migration tooling
+- Some endpoint management or security products collecting system state
+- Admin troubleshooting scripts using reg.exe
+
+Tuning Tips:
+- Prefer allowlisting known IR tools and management agents by ImageFileName/ParentFileName
+- Add an allowlist for expected output directories (approved collection shares)
+- Focus on user-writable locations (Temp, Downloads, Desktop) for higher signal
+- Consider correlating with process execution telemetry for reg save / reg export
+- Raise thresholds or require distinct file paths if noisy
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=*Written*
+
+``` Target Scope: registry hive export artifacts written to disk ```
+``` Matches paths ending with \SAM, \SYSTEM, \SECURITY or common export names like sam.hiv / system.hiv / security.hiv ```
+| regex TargetFileName="(?i)(\\(sam|system|security)(\.[^\\]+)?$)|(\b(sam|system|security)\.hiv$)"
+
+``` Optional: scope to reg.exe as writer or parent to reduce noise ```
+``` | regex ImageFileName="(?i)\\reg\.exe$" ```
+``` | regex ParentFileName="(?i)\\reg\.exe$" ```
+
+``` Optional stricter mode: only match common hive export extensions ```
+``` | regex TargetFileName="(?i)(\\(sam|system|security)\.(hiv|sav|save|bak)$)|(\b(sam|system|security)\.(hiv|sav|save|bak)$)" ```
+
+``` Optional: focus on common dump locations and require sam/system/security in the filename ```
+``` | regex TargetFileName="(?i)\\(users\\[^\\]+\\(downloads|desktop)|windows\\temp|temp)\\.*(sam|system|security)(\.[^\\]+)?$" ```
+
+``` Aggregation and prioritization ```
+| stats count as HiveExportWrites by ComputerName UserName ImageFileName ParentFileName TargetFileName
+| sort - HiveExportWrites

@@ -1,0 +1,39 @@
+/*
+Title: File Write Burst Activity Detection
+Platform: Splunk SPL
+Technique: Impact
+MITRE ATT&CK: T1486
+
+Description:
+Detects potentially suspicious file system behavior by identifying bursts of file write
+events. High-volume write activity can be consistent with ransomware-style encryption,
+mass modification, automated staging, or other abnormal file processing.
+
+False Positives:
+- Backup/restore jobs or endpoint management agents
+- Software updates, patching, and installers
+- Large archive extraction (zip/unzip) or developer build output
+- AV scanning or EDR remediation activity
+- Legitimate bulk copy/move operations (e.g., migrating user folders)
+
+Tuning Tips:
+- Run in a short time window (e.g., last 5–15 minutes) and tune thresholds to your baseline
+- Exclude known-good processes once you add process context (backup agents, installers, mgmt tools)
+- Focus on endpoints with sensitive data (file servers, VDI pools, finance/HR devices)
+- Pair with additional signals (new/rare process, suspicious parent process, shadow copy deletion)
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=*Written*
+
+``` Aggregate write-event volume by host + user to surface bursty writers ```
+| stats count as TotalFileWrites by ComputerName UserName
+
+``` Alert when write volume exceeds the defined threshold; tune based on normal write rates ```
+| where TotalFileWrites >= 2000
+
+``` Prioritize the highest-volume writers for investigation ```
+| sort - TotalFileWrites

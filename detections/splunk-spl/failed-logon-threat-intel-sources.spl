@@ -1,0 +1,56 @@
+/*
+Title: Failed Logon Threat Intel Sources Detection
+Platform: Splunk SPL
+Technique: Credential Access
+MITRE ATT&CK: T1110
+
+Description:
+Identifies potentially suspicious authentication activity by highlighting failed logons
+originating from source IPs that are either explicitly watchlisted (e.g., threat intel feeds)
+or not part of a known-good allowlist (e.g., corporate VPN/proxy egress, jump hosts).
+Includes geolocation enrichment to add investigation context.
+
+False Positives:
+- Legitimate authentication traffic from newly added VPN/proxy egress IPs
+- Third-party integrations, IdP gateways, or hosted services using unfamiliar source IPs
+- Penetration tests or sanctioned security scanning from external infrastructure
+- GeoIP inaccuracies (context enrichment only)
+
+Tuning Tips:
+- Maintain a known-good allowlist lookup for corporate egress, jump hosts, and trusted scanners
+- Use CIDR-aware lookup logic when managing subnets rather than individual IPs
+- Add labels/source columns to lookup files to improve triage context in results
+- Increase the failure threshold to reduce noise from isolated mistyped passwords
+- Prioritize privileged accounts and high-value endpoints for alerting
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=UserLogonFailedv2
+
+``` Enrich the source IP address with geolocation context ```
+| iplocation RemoteAddressIP prefix=src_
+
+``` Option 1: target a small manually curated set of suspicious source IPs ```
+``` | search RemoteAddressIP IN ("203.0.113.10","198.51.100.25") ```
+
+``` Option 1 allowlist: suppress known-good authentication sources ```
+``` | search NOT RemoteAddressIP IN ("192.0.2.15","198.51.100.42") ```
+
+``` Option 2: threat-intelligence lookup for exact IP indicators; example CSV columns: ip, label, source ```
+``` | lookup threat_intel_ips.csv ip as RemoteAddressIP OUTPUT label source ```
+
+``` Option 2: allowlist lookup for known-good sources; example CSV columns: ip, owner, notes ```
+``` | lookup known_good_ips.csv ip as RemoteAddressIP OUTPUT owner notes ```
+``` | where isnull(owner) ```
+
+``` Aggregation and alerting logic ```
+| stats count as FailedLogons by RemoteAddressIP src_Country src_City UserName ComputerName label source
+
+``` Alert when failures exceed the defined threshold; tune based on environment baseline ```
+| where FailedLogons >= 5
+
+``` Prioritize the noisiest or most active sources for investigation ```
+| sort - FailedLogons

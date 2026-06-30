@@ -1,0 +1,53 @@
+/*
+Title: Failed Logon Targeted Users
+Platform: Splunk SPL
+Technique: Credential Access
+MITRE ATT&CK: T1110
+
+Description:
+Monitors failed authentication attempts targeting a defined set of high-value accounts
+(e.g., admins, executives, service accounts). Supports both a small inline list and a
+scalable lookup-based approach so the target set can be maintained over time. Results
+are summarized with user + source + endpoint context to prioritize the noisiest or most
+suspicious activity.
+
+False Positives:
+- Legitimate users mistyping passwords (especially after password changes)
+- Service accounts with expired credentials / misconfigured dependencies
+- SSO/IAM or application integration issues producing repeated failures
+- Scheduled tasks or scripts retrying with stale credentials
+
+Tuning Tips:
+- Prefer lookup CSVs for maintainability and ownership
+- Add metadata fields to the lookup (owner, criticality, notes) to enrich triage output
+- Tune thresholds per account criticality (lower for admins, higher for noisy service accounts)
+- Consider adding geo enrichment and allowlisting expected VPN/proxy sources
+- Pair with spray-style signals (many targeted users from one IP, or many IPs against one user)
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=UserLogonFailedv2
+
+``` Targeted User Option 1: small manually curated list ```
+``` | search UserName IN ("admin","svc_backup","jdoe") ```
+
+``` Targeted User Option 2: lookup-based list; example CSV columns: username, owner, criticality, notes ```
+``` | lookup targeted_users.csv username as UserName OUTPUT owner criticality notes ```
+
+``` Optional: enrich source IP with geolocation for triage context ```
+``` | iplocation RemoteAddressIP prefix=src_ ```
+
+``` Optional: suppress known-good auth sources such as VPN egress, proxy, or jump hosts ```
+``` | search NOT RemoteAddressIP IN ("<vpn_egress_ip_1>","<proxy_ip_2>") ```
+
+``` Aggregation and alerting logic ```
+| stats count as FailedLogons by UserName RemoteAddressIP ComputerName
+
+``` Threshold: tune to your baseline; consider per-user tuning outside the query if needed ```
+| where FailedLogons >= 5
+
+``` Rank highest volume first ```
+| sort - FailedLogons

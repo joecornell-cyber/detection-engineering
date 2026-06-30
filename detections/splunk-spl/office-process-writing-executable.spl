@@ -1,0 +1,41 @@
+/*
+Title: Office Process Writing Executable or Script Files
+Platform: Splunk SPL
+Technique: Initial Access / Execution
+MITRE ATT&CK: T1566, T1204, T1059
+
+Description:
+Detects file-write activity where Microsoft Office processes write potentially executable
+or script content to disk. This can indicate malicious documents dropping payloads via
+macros, embedded objects, or exploit chains.
+
+False Positives:
+- Legitimate Office add-ins extracting helper binaries
+- Corporate automation/templates that drop scripts
+- Document conversion/export tooling integrated with Office
+- Developer/test workflows on IT/engineering endpoints
+
+Tuning Tips:
+- Keep the extension list tight to reduce noise
+- Scope to user-writable paths for higher signal
+- Maintain allowlists for known-good add-ins or tooling
+- Correlate with follow-on execution from the same TargetFileName
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=*Written*
+
+``` Writer Process Scope: Microsoft Office processes ```
+| search ImageFileName IN ("winword.exe","excel.exe","powerpnt.exe","outlook.exe")
+
+``` Target File Filter: executable / script-like extensions ```
+| regex TargetFileName="(?i)\.(exe|dll|js|vbs|ps1|bat|cmd|scr|msi|lnk)$"
+
+``` Aggregation: surface Office processes writing suspicious file types ```
+| stats count as OfficeDropWrites by ComputerName UserName ImageFileName TargetFileName
+
+``` Prioritize highest-volume activity ```
+| sort -OfficeDropWrites

@@ -1,0 +1,40 @@
+/*
+Title: Executable Written to User Profile Locations
+Platform: Splunk SPL
+Technique: Defense Evasion
+MITRE ATT&CK: T1070 (related) / T1204 (related) / T1105 (related)
+
+Description:
+Detects potentially suspicious file writes where an executable/script artifact is written
+into common user-writable locations (e.g., Downloads, Temp, AppData). Adversaries often
+stage payloads in these directories prior to execution, persistence, or lateral movement.
+
+False Positives:
+- Legitimate software installers/updaters writing to Downloads/AppData/Temp
+- Browser downloads of legitimate tools (IT utilities, meeting clients, etc.)
+- Developer tooling, package managers, or build artifacts in user profile paths
+- Enterprise software deployment tools using user context
+
+Tuning Tips:
+- Add allowlists for known-good writers (browsers, software updaters, management agents)
+- Focus on rare ImageFileName writers per host or new/unsigned binaries (if available)
+- Tighten file-type list to what you actually see abused in your environment
+- Consider adding path focus (Downloads/Temp) first, then expand to AppData as needed
+- Pair with execution telemetry (ProcessRollup2) for “write then execute” patterns
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=*Written*
+
+``` Target scope: user profile locations + executable/script-like file types ```
+| regex TargetFileName="(?i)\\users\\[^\\]+\\(appdata|downloads|temp)\\.*\.(exe|dll|ps1|vbs|js|bat|cmd|scr|msi|lnk)$"
+
+``` Optional: broaden to additional common staging directories ```
+``` | regex TargetFileName="(?i)\\users\\[^\\]+\\(appdata|downloads|temp|desktop|documents)\\.*\.(exe|dll|ps1|vbs|js|bat|cmd|scr|msi|lnk)$" ```
+
+``` Aggregation and ranking ```
+| stats count as UserProfileExecWrites by ComputerName UserName ImageFileName TargetFileName
+| sort - UserProfileExecWrites

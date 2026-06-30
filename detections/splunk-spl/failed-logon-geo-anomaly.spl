@@ -1,0 +1,49 @@
+/*
+Title: Failed Logon Geo Anomaly Detection
+Platform: Splunk SPL
+Technique: Credential Access
+MITRE ATT&CK: T1110
+
+Description:
+Identifies potentially suspicious authentication activity by enriching failed logon
+events with geolocation data and highlighting bursts of failures coming from unexpected
+or unusual geographic origins. This can indicate credential stuffing, brute-force
+attempts, or scripted probing from foreign infrastructure.
+
+False Positives:
+- Legitimate travel or remote work from a new location
+- VPN / proxy egress IP changes (corporate VPN, consumer VPNs)
+- GeoIP inaccuracies or coarse geolocation for cloud/CDN IP ranges
+- Automated health checks or integrations attempting auth from hosted regions
+
+Tuning Tips:
+- Raise the failed-attempt threshold to reduce one-off noise
+- Exclude known VPN/proxy egress IPs and trusted infrastructure ranges
+- Focus on privileged accounts and high-value endpoints
+- Add allowlists for expected countries (or alert only on non-expected regions)
+- Pair with other signals (multiple users targeted by same IP, repeated attempts across hosts)
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=UserLogonFailedv2
+
+``` Enrich RemoteAddressIP with geolocation context ```
+| iplocation RemoteAddressIP prefix=src_
+
+``` Aggregation: summarize failed logons by user, source location, source IP, and host ```
+| stats count as FailedLogons by UserName src_Country src_City RemoteAddressIP ComputerName
+
+``` Optional: restrict alerts to specific high-risk or non-standard countries ```
+| search src_Country IN ("Canada")
+
+``` Allowlisted countries where logons are normally expected ```
+| search NOT src_Country IN ("United States")
+
+``` Threshold should be tuned based on baseline authentication failure rates ```
+| where FailedLogons >= 5
+
+``` Prioritize the highest-volume geo-anomalous failed logon activity ```
+| sort - FailedLogons

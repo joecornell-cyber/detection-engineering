@@ -1,0 +1,42 @@
+/*
+Title: Process Dump Written to Disk (Potential Credential Dumping)
+Platform: Splunk SPL
+Technique: Credential Access
+MITRE ATT&CK: T1003.001
+
+Description:
+Detects potential process memory dumping by identifying file-write activity consistent with
+dump artifacts (for example .dmp files) and/or dump filenames that reference sensitive
+processes (commonly LSASS). Process dumps can be used to extract credentials and secrets
+offline.
+
+False Positives:
+- Legitimate crash dumps (WerFault, application error reporting)
+- Endpoint security tooling (EDR/AV) capturing memory for analysis/remediation
+- IT troubleshooting / developer debugging tools
+- Performance/diagnostic utilities (ProcDump, Task Manager full dumps)
+
+Tuning Tips:
+- Start by hunting broadly, then tighten with allowlists for known dump tools/processes
+- Consider scoping to user-writable locations (Temp/Downloads/Desktop) for higher signal
+- Add a watchlist for sensitive process names (lsass, winlogon, samss, etc.) if present in filenames
+- If your telemetry includes dump path fields, prefer those over filename-only matching
+- Consider correlating with process execution telemetry for procdump/comsvcs/werfault usage
+
+References:
+- Splunk Quick Reference Guide: https://help.splunk.com/en/splunk-enterprise/spl-search-reference/10.4/quick-reference/splunk-quick-reference-guide
+- CrowdStrike LogScale community content: https://github.com/CrowdStrike/logscale-community-content/tree/main
+*/
+
+index=CrowdStrike sourcetype=CrowdStrike_EDR event_simpleName=*Written*
+
+``` Target scope: process dump-like artifacts written to disk ```
+``` Matches .dmp files, LSASS naming patterns, minidump, and memory.dmp artifacts ```
+| regex TargetFileName="(?i)(\.dmp$)|(\blsass\b)|(minidump)|(memory\.dmp$)"
+
+``` Optional: focus on common user-writable dump locations for higher signal ```
+``` | regex TargetFileName="(?i)\\(users\\[^\\]+\\(downloads|desktop)|windows\\temp|temp)\\.*(\.dmp$|\blsass\b|memory\.dmp$)" ```
+
+``` Aggregation and ranking ```
+| stats count as DumpWriteEvents by ComputerName UserName ImageFileName TargetFileName
+| sort - DumpWriteEvents
